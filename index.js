@@ -17,7 +17,7 @@ const swaggerJsdoc = require("swagger-jsdoc");
 // ==========================================
 
 dotenv.config();
-console.log("JWT_SECRET loaded:", !!process.env.JWT_SECRET);
+console.log("JWT_SECRET loaded....:", !!process.env.JWT_SECRET);
 
 // ==========================================
 // IMPORT ROUTES
