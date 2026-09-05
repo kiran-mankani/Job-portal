@@ -1,11 +1,9 @@
 const Interview = require("../models/Interview");
 const Application = require("../models/Application");
+const Job = require("../models/Job");
 
-// ==========================================
 // 25. RECRUITER SCHEDULE INTERVIEW
 // POST /api/interviews
-// ==========================================
-
 const scheduleInterview = async (req, res) => {
   try {
     const {
@@ -19,16 +17,13 @@ const scheduleInterview = async (req, res) => {
       notes,
     } = req.body;
 
-    // Check required fields
     if (!applicationId || !candidateId || !date || !mode) {
       return res.status(400).json({
         success: false,
-        message:
-          "applicationId, candidateId, date and mode are required",
+        message: "applicationId, candidateId, date and mode are required",
       });
     }
 
-    // Check application
     const application = await Application.findById(applicationId);
 
     if (!application) {
@@ -38,7 +33,30 @@ const scheduleInterview = async (req, res) => {
       });
     }
 
-    // Create interview
+    if (application.candidate.toString() !== candidateId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "Candidate does not match the application",
+      });
+    }
+
+    const job = await Job.findById(application.job);
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: "Job not found",
+      });
+    }
+
+    if (job.recruiter.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "You are not authorized to schedule interview for this application",
+      });
+    }
+
     const interview = await Interview.create({
       application: applicationId,
       candidate: candidateId,
@@ -52,10 +70,15 @@ const scheduleInterview = async (req, res) => {
       status: "scheduled",
     });
 
+    const populatedInterview = await Interview.findById(interview._id)
+      .populate("application")
+      .populate("candidate", "-password")
+      .populate("recruiter", "-password");
+
     return res.status(201).json({
       success: true,
       message: "Interview scheduled successfully",
-      interview,
+      interview: populatedInterview,
     });
   } catch (error) {
     console.error("Schedule Interview Error:", error);
@@ -68,11 +91,8 @@ const scheduleInterview = async (req, res) => {
   }
 };
 
-// ==========================================
 // 26. CANDIDATE VIEW INTERVIEWS
 // GET /api/interviews/my-interviews
-// ==========================================
-
 const getCandidateInterviews = async (req, res) => {
   try {
     const interviews = await Interview.find({
@@ -99,11 +119,8 @@ const getCandidateInterviews = async (req, res) => {
   }
 };
 
-// ==========================================
 // 27. RECRUITER VIEW INTERVIEWS
 // GET /api/interviews/recruiter-interviews
-// ==========================================
-
 const getRecruiterInterviews = async (req, res) => {
   try {
     const interviews = await Interview.find({
@@ -130,11 +147,8 @@ const getRecruiterInterviews = async (req, res) => {
   }
 };
 
-// ==========================================
 // 28. UPDATE / RESCHEDULE INTERVIEW
 // PUT /api/interviews/:id
-// ==========================================
-
 const updateInterview = async (req, res) => {
   try {
     const { id } = req.params;
@@ -143,6 +157,7 @@ const updateInterview = async (req, res) => {
       scheduledAt,
       duration,
       meetingLink,
+      location,
       notes,
       status,
     } = req.body;
@@ -156,7 +171,6 @@ const updateInterview = async (req, res) => {
       });
     }
 
-    // Only the recruiter who created the interview can update it
     if (
       interview.recruiter &&
       interview.recruiter.toString() !== req.user._id.toString()
@@ -167,7 +181,6 @@ const updateInterview = async (req, res) => {
       });
     }
 
-    // Interview model uses "date", not "scheduledAt"
     if (scheduledAt !== undefined) {
       interview.date = scheduledAt;
     }
@@ -180,15 +193,38 @@ const updateInterview = async (req, res) => {
       interview.meetingLink = meetingLink;
     }
 
+    if (location !== undefined) {
+      interview.location = location;
+    }
+
     if (notes !== undefined) {
       interview.notes = notes;
     }
 
     if (status !== undefined) {
+      const allowedStatuses = [
+        "scheduled",
+        "completed",
+        "cancelled",
+      ];
+
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid status. Allowed values: scheduled, completed, cancelled",
+        });
+      }
+
       interview.status = status;
     }
 
-    const updatedInterview = await interview.save();
+    await interview.save();
+
+    const updatedInterview = await Interview.findById(interview._id)
+      .populate("application")
+      .populate("candidate", "-password")
+      .populate("recruiter", "-password");
 
     return res.status(200).json({
       success: true,
@@ -206,11 +242,8 @@ const updateInterview = async (req, res) => {
   }
 };
 
-// ==========================================
 // 29. CANCEL INTERVIEW
 // PATCH /api/interviews/:id/cancel
-// ==========================================
-
 const cancelInterview = async (req, res) => {
   try {
     const { id } = req.params;
@@ -224,7 +257,6 @@ const cancelInterview = async (req, res) => {
       });
     }
 
-    // Only the recruiter who created the interview can cancel it
     if (
       interview.recruiter &&
       interview.recruiter.toString() !== req.user._id.toString()
@@ -235,9 +267,28 @@ const cancelInterview = async (req, res) => {
       });
     }
 
+    if (interview.status === "cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Interview is already cancelled",
+      });
+    }
+
+    if (interview.status === "completed") {
+      return res.status(400).json({
+        success: false,
+        message: "Completed interview cannot be cancelled",
+      });
+    }
+
     interview.status = "cancelled";
 
-    const cancelledInterview = await interview.save();
+    await interview.save();
+
+    const cancelledInterview = await Interview.findById(interview._id)
+      .populate("application")
+      .populate("candidate", "-password")
+      .populate("recruiter", "-password");
 
     return res.status(200).json({
       success: true,
@@ -254,10 +305,6 @@ const cancelInterview = async (req, res) => {
     });
   }
 };
-
-// ==========================================
-// EXPORT
-// ==========================================
 
 module.exports = {
   scheduleInterview,

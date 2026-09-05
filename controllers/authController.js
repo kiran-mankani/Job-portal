@@ -4,26 +4,18 @@
 
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
-const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 
 // ==========================================
-// EMAIL TRANSPORTER
+// EMAIL SERVICE
 // ==========================================
 
 
+// ==========================================
+// EMAIL SERVICE
+// ==========================================
 
-
-
-
-const emailTransporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
-
+const { sendOtpEmail } = require("../services/emailService");
 // ==========================================
 // 1. CANDIDATE REGISTRATION
 // POST /api/auth/register
@@ -245,13 +237,10 @@ const forgotPassword = async (req, res) => {
     user.resetPasswordOTPExpires = otpExpiry;
 
     await user.save();
-
-    await emailTransporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: user.email,
-      subject: "Job Portal - Password Reset OTP",
-      text: `Your password reset OTP is ${otp}. This OTP will expire in 10 minutes.`,
-    });
+await sendOtpEmail({
+  to: email,
+  otp,
+});
 
     return res.status(200).json({
       success: true,
@@ -304,13 +293,10 @@ const resendOTP = async (req, res) => {
 
     await user.save();
 
-    await emailTransporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Password Reset OTP",
-      text: `Your new password reset OTP is ${otp}. It is valid for 10 minutes.`,
-    });
-
+   await sendOtpEmail({
+  to: user.email,
+  otp,
+});
     return res.status(200).json({
       success: true,
       message: "New OTP sent successfully",
