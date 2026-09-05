@@ -1,6 +1,8 @@
 const Application = require("../models/Application");
 const Job = require("../models/Job");
-
+const Application = require("../models/Application");
+const Job = require("../models/Job");
+const cloudinary = require("../config/cloudinary");
 // ==========================================
 // Candidate Apply for Job
 // POST /api/applications/:jobId/apply
@@ -73,6 +75,10 @@ const applyForJob = async (req, res) => {
 // Upload CV
 // POST /api/applications/:applicationId/cv
 // ==========================================
+// ==========================================
+// Upload CV to Cloudinary
+// POST /api/applications/:applicationId/cv
+// ==========================================
 const uploadCV = async (req, res) => {
   try {
     const { applicationId } = req.params;
@@ -94,14 +100,43 @@ const uploadCV = async (req, res) => {
     }
 
     // Only application owner can upload CV
-    if (application.candidate.toString() !== req.user._id.toString()) {
+    if (
+      application.candidate.toString() !==
+      req.user._id.toString()
+    ) {
       return res.status(403).json({
         success: false,
-        message: "You can only upload CV for your own application",
+        message:
+          "You can only upload CV for your own application",
       });
     }
 
-    application.cv = `/uploads/cvs/${req.file.filename}`;
+    // Upload PDF/DOC/DOCX buffer to Cloudinary
+    const uploadToCloudinary = () => {
+      return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: "job-portal/cvs",
+            resource_type: "raw",
+            public_id: `${applicationId}-${Date.now()}`,
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+
+        uploadStream.end(req.file.buffer);
+      });
+    };
+
+    const result = await uploadToCloudinary();
+
+    // Save Cloudinary URL in MongoDB
+    application.cv = result.secure_url;
 
     await application.save();
 
