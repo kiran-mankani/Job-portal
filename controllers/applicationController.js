@@ -1,7 +1,5 @@
 const Application = require("../models/Application");
 const Job = require("../models/Job");
-const Application = require("../models/Application");
-const Job = require("../models/Job");
 const cloudinary = require("../config/cloudinary");
 // ==========================================
 // Candidate Apply for Job
