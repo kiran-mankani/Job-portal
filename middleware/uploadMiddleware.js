@@ -1,42 +1,89 @@
+
 const multer = require("multer");
-const path = require("path");
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/cvs/");
-  },
+// ==========================================
+// MULTER MEMORY STORAGE
+// ==========================================
+//
+// File server ki disk par save nahi hogi.
+// File directly memory buffer mein aayegi,
+// jise controller Cloudinary par upload karega.
+// ==========================================
 
-  filename: (req, file, cb) => {
-    const uniqueName =
-      Date.now() +
-      "-" +
-      Math.round(Math.random() * 1e9) +
-      path.extname(file.originalname);
+const storage = multer.memoryStorage();
 
-    cb(null, uniqueName);
-  },
-});
+// ==========================================
+// ALLOWED RESUME FILE TYPES
+// ==========================================
+
+const allowedMimeTypes = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+const allowedExtensions = new Set([
+  ".pdf",
+  ".doc",
+  ".docx",
+]);
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = [
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ];
+  const mimetype = String(
+    file.mimetype || ""
+  )
+    .trim()
+    .toLowerCase();
 
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error("Only PDF, DOC, and DOCX files are allowed"), false);
+  const originalName = String(
+    file.originalname || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const extension = originalName.includes(".")
+    ? originalName.substring(
+        originalName.lastIndexOf(".")
+      )
+    : "";
+
+  // ----------------------------------------
+  // Validate MIME type + extension
+  // ----------------------------------------
+
+  if (
+    allowedMimeTypes.has(mimetype) &&
+    allowedExtensions.has(extension)
+  ) {
+    return cb(null, true);
   }
+
+  return cb(
+    new multer.MulterError(
+      "LIMIT_UNEXPECTED_FILE"
+    ),
+    false
+  );
 };
 
-const uploadCV = multer({
+// ==========================================
+// MULTER CONFIGURATION
+// ==========================================
+
+const uploadResume = multer({
   storage,
+
   fileFilter,
+
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    // Maximum resume size = 5 MB
+    fileSize:
+      5 * 1024 * 1024,
+
+    // Only one resume file at a time
+    files: 1,
   },
 });
 
-module.exports = uploadCV;
+module.exports = uploadResume;
+
