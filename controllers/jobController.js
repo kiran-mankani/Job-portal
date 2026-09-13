@@ -1180,15 +1180,11 @@ const deleteJob = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message:
-        "Job updated successfully",
-      job: updatedJob || job,
+      message: "Job deleted successfully",
+      jobId: job._id,
     });
   } catch (error) {
-    console.error(
-      "Update Job Error:",
-      error
-    );
+    console.error("Delete Job Error:", error);
 
     if (error.name === "CastError") {
       return res.status(400).json({
