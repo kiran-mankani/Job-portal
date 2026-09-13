@@ -284,7 +284,8 @@ const scheduleInterview = async (req, res) => {
     if (!application) {
       return res.status(404).json({
         success: false,
-        message: "Application not found",
+        message:
+          "Application not found",
       });
     }
 
@@ -304,7 +305,8 @@ const scheduleInterview = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Candidate does not match the application",
+        message:
+          "Application does not have a valid candidate",
       });
     }
 
@@ -356,7 +358,8 @@ const scheduleInterview = async (req, res) => {
     if (!job) {
       return res.status(404).json({
         success: false,
-        message: "Job not found",
+        message:
+          "Job not found",
       });
     }
 
@@ -481,11 +484,16 @@ const scheduleInterview = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Interview scheduled successfully",
-      interview: populatedInterview,
+      message:
+        "Interview scheduled successfully",
+      interview:
+        populatedInterview,
     });
   } catch (error) {
-    console.error("Schedule Interview Error:", error);
+    console.error(
+      "Schedule Interview Error:",
+      error
+    );
 
     // Return the real reason in dev so you can debug.
     return res.status(500).json({

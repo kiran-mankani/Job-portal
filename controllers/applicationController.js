@@ -608,14 +608,24 @@ const getMyApplications = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Applications fetched successfully",
+      message:
+        "Applications fetched successfully",
       count: applications.length,
       total,
       pagination: buildPagination(page, limit, total),
       applications,
+      pagination:
+        buildPagination(
+          page,
+          limit,
+          total
+        ),
     });
   } catch (error) {
-    console.error("Get My Applications Error:", error);
+    console.error(
+      "Get My Applications Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -1401,7 +1411,8 @@ const downloadApplicationResume = async (req, res) => {
     if (!application) {
       return res.status(404).json({
         success: false,
-        message: "Application not found",
+        message:
+          "Application not found",
       });
     }
 
@@ -1548,7 +1559,6 @@ const downloadApplicationResume = async (req, res) => {
     });
   }
 };
-
 
 // ==========================================
 // EXPORT CONTROLLERS

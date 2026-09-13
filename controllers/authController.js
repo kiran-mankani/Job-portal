@@ -1276,7 +1276,10 @@ const updateProfile = async (req, res) => {
       user: createSafeUser(user),
     });
   } catch (error) {
-    console.error("Update Profile Error:", error);
+    console.error(
+      "Get Current User Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,

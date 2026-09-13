@@ -802,7 +802,7 @@ const updateJob = async (req, res) => {
     if (String(job.recruiter) !== String(recruiterId)) {
       return res.status(403).json({
         success: false,
-        message: "You can only update your own jobs",
+        message: "Invalid job ID",
       });
     }
 
@@ -1180,10 +1180,15 @@ const deleteJob = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Job deleted successfully",
+      message:
+        "Job updated successfully",
+      job: updatedJob || job,
     });
   } catch (error) {
-    console.error("Delete Job Error:", error);
+    console.error(
+      "Update Job Error:",
+      error
+    );
 
     if (error.name === "CastError") {
       return res.status(400).json({
