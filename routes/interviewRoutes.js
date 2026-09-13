@@ -13,17 +13,17 @@ const {
 
 const router = express.Router();
 
-// ==========================================
-// 25. RECRUITER SCHEDULE INTERVIEW
+// =====================================================
+// RECRUITER SCHEDULE INTERVIEW
 // POST /api/interviews
-// ==========================================
+// =====================================================
 
 /**
  * @swagger
  * /api/interviews:
  *   post:
- *     summary: Recruiter Schedule Interview
- *     description: Allows a recruiter to schedule an interview for a candidate.
+ *     summary: Schedule an interview
+ *     description: Allows a recruiter to schedule an interview for a candidate's application.
  *     tags:
  *       - Interviews
  *     security:
@@ -45,13 +45,15 @@ const router = express.Router();
  *                 example: 68b123456789abcdef123456
  *               candidateId:
  *                 type: string
- *                 example: 68b123456789abcdef123456
+ *                 example: 68b223456789abcdef123456
  *               date:
  *                 type: string
  *                 format: date-time
- *                 example: 2026-09-05T10:00:00.000Z
+ *                 example: 2026-09-15T10:00:00.000Z
  *               duration:
- *                 type: number
+ *                 type: integer
+ *                 minimum: 15
+ *                 maximum: 480
  *                 example: 30
  *               mode:
  *                 type: string
@@ -72,13 +74,15 @@ const router = express.Router();
  *       201:
  *         description: Interview scheduled successfully
  *       400:
- *         description: Required fields are missing
+ *         description: Invalid request, date, mode, or application state
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Only recruiters can schedule interviews
  *       404:
- *         description: Application not found
+ *         description: Application, candidate, or job not found
+ *       409:
+ *         description: A scheduled interview already exists for this application
  *       500:
  *         description: Server error
  */
@@ -90,28 +94,52 @@ router.post(
   scheduleInterview
 );
 
-// ==========================================
-// 26. CANDIDATE VIEW INTERVIEWS
+// =====================================================
+// CANDIDATE VIEW INTERVIEWS
 // GET /api/interviews/my-interviews
-// ==========================================
+// =====================================================
 
 /**
  * @swagger
  * /api/interviews/my-interviews:
  *   get:
- *     summary: Candidate View Interviews
- *     description: Returns all interviews scheduled for the logged-in candidate.
+ *     summary: Get candidate interviews
+ *     description: Returns interviews scheduled for the authenticated candidate.
  *     tags:
  *       - Interviews
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - scheduled
+ *             - completed
+ *             - cancelled
  *     responses:
  *       200:
  *         description: Candidate interviews fetched successfully
+ *       400:
+ *         description: Invalid query parameters
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Only candidates can view interviews
+ *         description: Only candidates can view their interviews
  *       500:
  *         description: Server error
  */
@@ -123,24 +151,60 @@ router.get(
   getCandidateInterviews
 );
 
-// ==========================================
-// 27. RECRUITER VIEW INTERVIEWS
+// =====================================================
+// RECRUITER VIEW INTERVIEWS
 // GET /api/interviews/recruiter-interviews
-// ==========================================
+// =====================================================
 
 /**
  * @swagger
  * /api/interviews/recruiter-interviews:
  *   get:
- *     summary: Recruiter View Interviews
- *     description: Returns all interviews scheduled by the currently logged-in recruiter.
+ *     summary: Get recruiter interviews
+ *     description: Returns interviews scheduled by the authenticated recruiter.
  *     tags:
  *       - Interviews
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - scheduled
+ *             - completed
+ *             - cancelled
+ *       - in: query
+ *         name: mode
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - online
+ *             - offline
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search candidate or related job information.
  *     responses:
  *       200:
  *         description: Recruiter interviews fetched successfully
+ *       400:
+ *         description: Invalid query parameters
  *       401:
  *         description: Unauthorized
  *       403:
@@ -156,17 +220,17 @@ router.get(
   getRecruiterInterviews
 );
 
-// ==========================================
-// 28. UPDATE / RESCHEDULE INTERVIEW
+// =====================================================
+// UPDATE / RESCHEDULE INTERVIEW
 // PUT /api/interviews/:id
-// ==========================================
+// =====================================================
 
 /**
  * @swagger
  * /api/interviews/{id}:
  *   put:
  *     summary: Update or reschedule an interview
- *     description: Update interview date, duration, meeting link, notes, or status.
+ *     description: Allows the owning recruiter to update date, duration, mode, meeting details, notes, or status.
  *     tags:
  *       - Interviews
  *     security:
@@ -178,7 +242,7 @@ router.get(
  *         description: Interview MongoDB ID
  *         schema:
  *           type: string
- *           example: "68b5c123456789abcdef1234"
+ *           example: 68b5c123456789abcdef1234
  *     requestBody:
  *       required: true
  *       content:
@@ -186,19 +250,35 @@ router.get(
  *           schema:
  *             type: object
  *             properties:
+ *               date:
+ *                 type: string
+ *                 format: date-time
+ *                 example: 2026-09-20T15:00:00.000Z
  *               scheduledAt:
  *                 type: string
  *                 format: date-time
- *                 example: "2026-09-05T15:00:00.000Z"
+ *                 description: Backward-compatible alias for date.
+ *                 example: 2026-09-20T15:00:00.000Z
  *               duration:
- *                 type: number
+ *                 type: integer
+ *                 minimum: 15
+ *                 maximum: 480
  *                 example: 60
+ *               mode:
+ *                 type: string
+ *                 enum:
+ *                   - online
+ *                   - offline
+ *                 example: online
  *               meetingLink:
  *                 type: string
- *                 example: "https://meet.google.com/abc-defg-hij"
+ *                 example: https://meet.google.com/abc-defg-hij
+ *               location:
+ *                 type: string
+ *                 example: Lahore Office
  *               notes:
  *                 type: string
- *                 example: "Interview rescheduled to Saturday"
+ *                 example: Interview rescheduled to Saturday
  *               status:
  *                 type: string
  *                 enum:
@@ -209,10 +289,12 @@ router.get(
  *     responses:
  *       200:
  *         description: Interview updated/rescheduled successfully
+ *       400:
+ *         description: Invalid interview data or invalid status transition
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: You are not authorized to update this interview
+ *         description: Only the owning recruiter can update this interview
  *       404:
  *         description: Interview not found
  *       500:
@@ -226,17 +308,17 @@ router.put(
   updateInterview
 );
 
-// ==========================================
-// 29. CANCEL INTERVIEW
+// =====================================================
+// CANCEL INTERVIEW
 // PATCH /api/interviews/:id/cancel
-// ==========================================
+// =====================================================
 
 /**
  * @swagger
  * /api/interviews/{id}/cancel:
  *   patch:
  *     summary: Cancel an interview
- *     description: Cancel a scheduled interview.
+ *     description: Allows the owning recruiter to cancel a scheduled interview.
  *     tags:
  *       - Interviews
  *     security:
@@ -248,14 +330,16 @@ router.put(
  *         description: Interview MongoDB ID
  *         schema:
  *           type: string
- *           example: "68b5c123456789abcdef1234"
+ *           example: 68b5c123456789abcdef1234
  *     responses:
  *       200:
  *         description: Interview cancelled successfully
+ *       400:
+ *         description: Interview is already cancelled or completed
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: You are not authorized to cancel this interview
+ *         description: Only the owning recruiter can cancel this interview
  *       404:
  *         description: Interview not found
  *       500:
@@ -268,5 +352,9 @@ router.patch(
   authorizeRoles("recruiter"),
   cancelInterview
 );
+
+// =====================================================
+// EXPORT ROUTER
+// =====================================================
 
 module.exports = router;

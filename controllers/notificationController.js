@@ -1,389 +1,310 @@
-const {
-  sendApplicationEmail,
-    sendInterviewEmail,
-    sendPasswordResetEmail,
-  sendOtpEmail,
 
-} = require("../utils/emailService");
+const Notification = require("../models/Notification");
 
-// ==========================================
-// Application Email Notification
-// POST /api/notifications/application-email
-// ==========================================
+// ======================================================
+// HELPERS
+// ======================================================
 
-/**
- * @swagger
- * /api/notifications/application-email:
- *   post:
- *     summary: Send application email notification
- *     description: Sends an email notification to a candidate after applying for a job
- *     tags:
- *       - Notifications
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - to
- *               - candidateName
- *               - jobTitle
- *               - companyName
- *             properties:
- *               to:
- *                 type: string
- *                 example: candidate@gmail.com
- *               candidateName:
- *                 type: string
- *                 example: Kiran
- *               jobTitle:
- *                 type: string
- *                 example: MERN Stack Developer
- *               companyName:
- *                 type: string
- *                 example: ABC Technologies
- *     responses:
- *       200:
- *         description: Application email sent successfully
- *       400:
- *         description: Required fields are missing
- *       500:
- *         description: Failed to send application email
- */
-
-const sendApplicationNotification = async (req, res) => {
-  try {
-    const {
-      to,
-      candidateName,
-      jobTitle,
-      companyName,
-    } = req.body;
-
-    if (
-      !to ||
-      !candidateName ||
-      !jobTitle ||
-      !companyName
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "All fields are required",
-      });
-    }
-
-    const result = await sendApplicationEmail({
-      to,
-      candidateName,
-      jobTitle,
-      companyName,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Application email sent successfully",
-      messageId: result.messageId,
-    });
-  } catch (error) {
-    console.error(
-      "Send Application Notification Error:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to send application email",
-      error: error.message,
-    });
-  }
+const getUserId = (req) => {
+  return req.user?._id || req.user?.id || null;
 };
-// ==========================================
-// Interview Email Notification
-// POST /api/notifications/interview-email
-// ==========================================
 
-/**
- * @swagger
- * /api/notifications/interview-email:
- *   post:
- *     summary: Send interview email notification
- *     description: Sends interview schedule details to a candidate
- *     tags:
- *       - Notifications
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - to
- *               - candidateName
- *               - jobTitle
- *               - interviewDate
- *               - interviewTime
- *               - interviewType
- *             properties:
- *               to:
- *                 type: string
- *                 example: candidate@gmail.com
- *               candidateName:
- *                 type: string
- *                 example: Kiran
- *               jobTitle:
- *                 type: string
- *                 example: MERN Stack Developer
- *               interviewDate:
- *                 type: string
- *                 example: 2026-09-05
- *               interviewTime:
- *                 type: string
- *                 example: 10:30 AM
- *               interviewType:
- *                 type: string
- *                 example: Online
- *               interviewLink:
- *                 type: string
- *                 example: https://meet.google.com/abc-defg-hij
- *     responses:
- *       200:
- *         description: Interview email sent successfully
- *       400:
- *         description: Required fields are missing
- *       500:
- *         description: Failed to send interview email
- */
+const sendServerError = (res, message) => {
+  return res.status(500).json({
+    success: false,
+    message,
+  });
+};
 
-const sendInterviewNotification = async (req, res) => {
+// ======================================================
+// CREATE IN-APP NOTIFICATION
+// ======================================================
+
+const createNotification = async ({
+  userId,
+  type = "system",
+  title,
+  message,
+  relatedId = null,
+  relatedType = null,
+}) => {
   try {
-    const {
-      to,
-      candidateName,
-      jobTitle,
-      interviewDate,
-      interviewTime,
-      interviewType,
-      interviewLink,
-    } = req.body;
-
-    if (
-      !to ||
-      !candidateName ||
-      !jobTitle ||
-      !interviewDate ||
-      !interviewTime ||
-      !interviewType
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "All required fields are required",
-      });
+    if (!userId || !title || !message) {
+      return null;
     }
 
-    const result = await sendInterviewEmail({
-      to,
-      candidateName,
-      jobTitle,
-      interviewDate,
-      interviewTime,
-      interviewType,
-      interviewLink,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Interview email sent successfully",
-      messageId: result.messageId,
+    return await Notification.create({
+      user: userId,
+      type,
+      title,
+      message,
+      relatedId,
+      relatedType,
     });
   } catch (error) {
-    console.error(
-      "Send Interview Notification Error:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to send interview email",
-      error: error.message,
-    });
+    console.error("Create Notification Error:", error);
+    return null;
   }
 };
 
-// ==========================================
-// Password Reset Email Notification
-// POST /api/notifications/password-reset-email
-// ==========================================
+// ======================================================
+// GET MY NOTIFICATIONS
+// GET /api/notifications?page=1&limit=10
+// ======================================================
 
-/**
- * @swagger
- * /api/notifications/password-reset-email:
- *   post:
- *     summary: Send password reset email
- *     description: Sends a password reset link to the user's email
- *     tags:
- *       - Notifications
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - to
- *               - name
- *               - resetLink
- *             properties:
- *               to:
- *                 type: string
- *                 example: candidate@gmail.com
- *               name:
- *                 type: string
- *                 example: Kiran
- *               resetLink:
- *                 type: string
- *                 example: http://localhost:5173/reset-password/abc123
- *     responses:
- *       200:
- *         description: Password reset email sent successfully
- *       400:
- *         description: Required fields are missing
- *       500:
- *         description: Failed to send password reset email
- */
-
-const sendPasswordResetNotification = async (req, res) => {
+const getNotifications = async (req, res) => {
   try {
-    const {
-      to,
-      name,
-      resetLink,
-    } = req.body;
+    const userId = getUserId(req);
 
-    if (!to || !name || !resetLink) {
-      return res.status(400).json({
+    if (!userId) {
+      return res.status(401).json({
         success: false,
-        message: "All fields are required",
+        message: "Unauthorized",
       });
     }
 
-    const result = await sendPasswordResetEmail({
-      to,
-      name,
-      resetLink,
-    });
+    // --------------------------------------------------
+    // Pagination
+    // --------------------------------------------------
 
-    res.status(200).json({
-      success: true,
-      message: "Password reset email sent successfully",
-      messageId: result.messageId,
-    });
-  } catch (error) {
-    console.error(
-      "Send Password Reset Notification Error:",
-      error
+    const parsedPage = parseInt(req.query.page, 10);
+    const parsedLimit = parseInt(req.query.limit, 10);
+
+    const page = Math.max(
+      Number.isNaN(parsedPage) ? 1 : parsedPage,
+      1
     );
 
-    res.status(500).json({
-      success: false,
-      message: "Failed to send password reset email",
-      error: error.message,
+    const limit = Math.min(
+      Math.max(
+        Number.isNaN(parsedLimit) ? 10 : parsedLimit,
+        1
+      ),
+      50
+    );
+
+    const skip = (page - 1) * limit;
+
+    // --------------------------------------------------
+    // Filter
+    // --------------------------------------------------
+
+    const filter = {
+      user: userId,
+    };
+
+    // --------------------------------------------------
+    // Total notifications
+    // --------------------------------------------------
+
+    const total = await Notification.countDocuments(filter);
+
+    // --------------------------------------------------
+    // Paginated notifications
+    // --------------------------------------------------
+
+    const notifications = await Notification.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // --------------------------------------------------
+    // Unread count
+    // --------------------------------------------------
+
+    const unreadCount = await Notification.countDocuments({
+      user: userId,
+      read: false,
     });
+
+    // --------------------------------------------------
+    // Pagination metadata
+    // --------------------------------------------------
+
+    const totalPages =
+      total === 0
+        ? 0
+        : Math.ceil(total / limit);
+
+    return res.status(200).json({
+      success: true,
+      count: notifications.length,
+      total,
+      unreadCount,
+      notifications,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage:
+          totalPages > 0 && page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
+  } catch (error) {
+    console.error("Get Notifications Error:", error);
+
+    return sendServerError(
+      res,
+      "Failed to fetch notifications"
+    );
   }
 };
 
-// ==========================================
-// OTP Email Notification
-// POST /api/notifications/otp-email
-// ==========================================
+// ======================================================
+// GET UNREAD COUNT
+// GET /api/notifications/unread-count
+// ======================================================
 
-/**
- * @swagger
- * /api/notifications/otp-email:
- *   post:
- *     summary: Send OTP email
- *     description: Sends an OTP verification code to the user's email
- *     tags:
- *       - Notifications
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - to
- *               - name
- *               - otp
- *             properties:
- *               to:
- *                 type: string
- *                 example: candidate@gmail.com
- *               name:
- *                 type: string
- *                 example: Kiran
- *               otp:
- *                 type: string
- *                 example: "123456"
- *     responses:
- *       200:
- *         description: OTP email sent successfully
- *       400:
- *         description: Required fields are missing
- *       500:
- *         description: Failed to send OTP email
- */
-
-const sendOtpNotification = async (req, res) => {
+const getUnreadNotificationCount = async (req, res) => {
   try {
-    const {
-      to,
-      name,
-      otp,
-    } = req.body;
+    const userId = getUserId(req);
 
-    if (!to || !name || !otp) {
-      return res.status(400).json({
+    if (!userId) {
+      return res.status(401).json({
         success: false,
-        message: "All fields are required",
+        message: "Unauthorized",
       });
     }
 
-    const result = await sendOtpEmail({
-      to,
-      name,
-      otp,
+    const unreadCount = await Notification.countDocuments({
+      user: userId,
+      read: false,
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "OTP email sent successfully",
-      messageId: result.messageId,
+      unreadCount,
     });
   } catch (error) {
     console.error(
-      "Send OTP Notification Error:",
+      "Get Unread Notification Count Error:",
       error
     );
 
-    res.status(500).json({
-      success: false,
-      message: "Failed to send OTP email",
-      error: error.message,
-    });
+    return sendServerError(
+      res,
+      "Failed to fetch unread notification count"
+    );
   }
 };
+
+// ======================================================
+// MARK ONE NOTIFICATION AS READ
+// PATCH /api/notifications/:id/read
+// ======================================================
+
+const markNotificationAsRead = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Notification ID is required",
+      });
+    }
+
+    const notification = await Notification.findOneAndUpdate(
+      {
+        _id: id,
+        user: userId,
+      },
+      {
+        read: true,
+      },
+      {
+        new: true,
+      }
+    );
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: "Notification not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Notification marked as read",
+      notification,
+    });
+  } catch (error) {
+    console.error(
+      "Mark Notification Read Error:",
+      error
+    );
+
+    return sendServerError(
+      res,
+      "Failed to mark notification as read"
+    );
+  }
+};
+
+// ======================================================
+// MARK ALL NOTIFICATIONS AS READ
+// PATCH /api/notifications/read-all
+// ======================================================
+
+const markAllNotificationsAsRead = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    await Notification.updateMany(
+      {
+        user: userId,
+        read: false,
+      },
+      {
+        read: true,
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "All notifications marked as read",
+    });
+  } catch (error) {
+    console.error(
+      "Mark All Notifications Read Error:",
+      error
+    );
+
+    return sendServerError(
+      res,
+      "Failed to mark all notifications as read"
+    );
+  }
+};
+
+// ======================================================
+// EXPORTS
+// ======================================================
+
 module.exports = {
-  sendApplicationNotification,
-  sendInterviewNotification,
-  sendPasswordResetNotification,
-    sendOtpNotification,
+  createNotification,
+  getNotifications,
+  getUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
 };
+

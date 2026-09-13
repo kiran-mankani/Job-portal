@@ -1,77 +1,410 @@
+
 const mongoose = require("mongoose");
 
-// User schema defines what information we will store for candidates/recruiters
+// ==========================================
+// USER SCHEMA
+// ==========================================
+
 const userSchema = new mongoose.Schema(
   {
-    // User's full name
+    // ==========================================
+    // BASIC ACCOUNT INFORMATION
+    // ==========================================
+
     name: {
       type: String,
       required: true,
       trim: true,
+      minlength: 2,
+      maxlength: 100,
     },
-    
 
-    // User's email address
-    // unique: true prevents duplicate email registration
     email: {
       type: String,
       required: true,
       unique: true,
       lowercase: true,
       trim: true,
+      index: true,
     },
 
-    // Password will be stored as a bcrypt hash, NOT plain text
     password: {
       type: String,
       required: true,
       minlength: 6,
+      select: false,
     },
 
-    // User's phone number
     phone: {
       type: String,
       required: true,
       trim: true,
+      maxlength: 30,
     },
 
-    // For this API we will register candidates
-    // Later the same User model will support recruiters/admins
-role: {
-  type: String,
-  enum: ["candidate", "recruiter", "admin"],
-  default: "candidate",
-},
+    // ==========================================
+    // ROLE & ACCOUNT STATUS
+    // ==========================================
 
-// User block/unblock status
-isBlocked: {
-  type: Boolean,
-  default: false,
-},
+    role: {
+      type: String,
+      enum: ["candidate", "recruiter", "admin"],
+      default: "candidate",
+      index: true,
+    },
 
-// Stores the OTP used for password reset
-resetPasswordOTP: {
-  type: String,
-  default: null,
-},
+    isBlocked: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
 
-// Stores when the OTP will expire
-resetPasswordOTPExpires: {
-  type: Date,
-  default: null,
-},
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
 
-// Stores when the OTP will expire
-resetPasswordOTPExpires: {
-  type: Date,
-  default: null,
-},
+    // ==========================================
+    // COMPANY REFERENCE
+    // ==========================================
+    // Company information is stored in the
+    // separate Company collection.
+    //
+    // User only stores the Company ObjectId.
+    // ==========================================
+
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
+      index: true,
+    },
+
+    // ==========================================
+    // PROFILE INFORMATION
+    // ==========================================
+
+    profile: {
+      profileImage: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+
+      bio: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: 2000,
+      },
+
+      location: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: 200,
+      },
+
+      headline: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: 200,
+      },
+
+      designation: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: 100,
+      },
+
+      skills: {
+        type: [String],
+        default: [],
+      },
+
+      education: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: 2000,
+      },
+
+      experience: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: 2000,
+      },
+
+      // Keep ONE CV/resume field.
+      resume: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+    },
+
+    // ==========================================
+    // CANDIDATE DASHBOARD DATA
+    // ==========================================
+
+    profileViews: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    savedJobs: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Job",
+      },
+    ],
+
+    // ==========================================
+    // ACCOUNT SETTINGS
+    // ==========================================
+
+    settings: {
+      emailNotifications: {
+        type: Boolean,
+        default: true,
+      },
+
+      applicationUpdates: {
+        type: Boolean,
+        default: true,
+      },
+
+      interviewReminders: {
+        type: Boolean,
+        default: true,
+      },
+
+      jobAlerts: {
+        type: Boolean,
+        default: true,
+      },
+
+      messageNotifications: {
+        type: Boolean,
+        default: true,
+      },
+
+      profileVisibility: {
+        type: Boolean,
+        default: true,
+      },
+    },
+
+    // ==========================================
+    // PASSWORD RESET / OTP
+    // ==========================================
+
+    resetPasswordOTP: {
+      type: String,
+      default: null,
+    },
+
+    resetPasswordOTPExpires: {
+      type: Date,
+      default: null,
+    },
   },
   {
-    // Automatically creates createdAt and updatedAt
     timestamps: true,
+    versionKey: false,
   }
 );
 
-// Export User model so controllers can use it
-module.exports = mongoose.model("User", userSchema);
+// ==========================================
+// INDEXES
+// ==========================================
+
+userSchema.index({
+  role: 1,
+  isBlocked: 1,
+});
+
+userSchema.index({
+  role: 1,
+  isActive: 1,
+});
+
+userSchema.index({
+  companyId: 1,
+  role: 1,
+});
+
+// ==========================================
+// PRE-SAVE NORMALIZATION
+// ==========================================
+
+userSchema.pre("save", function () {
+  // ----------------------------------------
+  // Name
+  // ----------------------------------------
+
+  if (this.isModified("name") && this.name) {
+    this.name = this.name.trim();
+  }
+
+  // ----------------------------------------
+  // Email
+  // ----------------------------------------
+
+  if (this.isModified("email") && this.email) {
+    this.email = this.email.trim().toLowerCase();
+  }
+
+  // ----------------------------------------
+  // Phone
+  // ----------------------------------------
+
+  if (this.isModified("phone") && this.phone) {
+    this.phone = this.phone.trim();
+  }
+
+  // ----------------------------------------
+  // Profile
+  // ----------------------------------------
+
+  if (this.profile !== undefined) {
+    // --------------------------------------
+    // Skills
+    // --------------------------------------
+
+    if (Array.isArray(this.profile.skills)) {
+      this.profile.skills = [
+        ...new Set(
+          this.profile.skills
+            .map((skill) =>
+              typeof skill === "string"
+                ? skill.trim()
+                : ""
+            )
+            .filter(Boolean)
+        ),
+      ];
+    }
+
+    
+    // --------------------------------------
+    // Location
+    // --------------------------------------
+
+    if (this.profile.location !== undefined) {
+      this.profile.location = String(
+        this.profile.location
+      ).trim();
+    }
+
+    // --------------------------------------
+    // Headline
+    // --------------------------------------
+
+    if (this.profile.headline !== undefined) {
+      this.profile.headline = String(
+        this.profile.headline
+      ).trim();
+    }
+
+    // --------------------------------------
+    // Designation (recruiter)
+    // --------------------------------------
+
+    if (this.profile.designation !== undefined) {
+      this.profile.designation = String(
+        this.profile.designation
+      ).trim();
+    }
+    
+    // --------------------------------------
+    // Bio
+    // --------------------------------------
+
+    if (this.profile.bio !== undefined) {
+      this.profile.bio = String(
+        this.profile.bio
+      ).trim();
+    }
+
+    // --------------------------------------
+    // Education
+    // --------------------------------------
+
+    if (this.profile.education !== undefined) {
+      this.profile.education = String(
+        this.profile.education
+      ).trim();
+    }
+
+    // --------------------------------------
+    // Experience
+    // --------------------------------------
+
+    if (this.profile.experience !== undefined) {
+      this.profile.experience = String(
+        this.profile.experience
+      ).trim();
+    }
+
+    // --------------------------------------
+    // Resume
+    // --------------------------------------
+
+    if (this.profile.resume !== undefined) {
+      this.profile.resume = String(
+        this.profile.resume
+      ).trim();
+    }
+
+    // --------------------------------------
+    // Profile Image
+    // --------------------------------------
+
+    if (this.profile.profileImage !== undefined) {
+      this.profile.profileImage = String(
+        this.profile.profileImage
+      ).trim();
+    }
+  }
+
+  // ----------------------------------------
+  // Settings
+  // ----------------------------------------
+
+  if (this.settings !== undefined) {
+    this.settings = {
+      emailNotifications:
+        this.settings.emailNotifications !== false,
+
+      applicationUpdates:
+        this.settings.applicationUpdates !== false,
+
+      interviewReminders:
+        this.settings.interviewReminders !== false,
+
+      jobAlerts:
+        this.settings.jobAlerts !== false,
+
+      messageNotifications:
+        this.settings.messageNotifications !== false,
+
+      profileVisibility:
+        this.settings.profileVisibility !== false,
+    };
+  }
+});
+
+// ==========================================
+// EXPORT MODEL
+// ==========================================
+
+module.exports = mongoose.model(
+  "User",
+  userSchema
+);
+
