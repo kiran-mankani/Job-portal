@@ -4,6 +4,19 @@ const Interview = require("../models/Interview");
 const Job = require("../models/Job");
 
 // ======================================================
+// Shared populate configs
+//
+// Job only stores a `companyId` reference (Company._id) — it
+// has no inline `company` field. Every query below that needs
+// a job's company name must populate `companyId`.
+// ======================================================
+
+const jobCompanyPopulate = {
+  path: "companyId",
+  select: "name logo location website",
+};
+
+// ======================================================
 // Helpers
 // ======================================================
 
@@ -342,10 +355,12 @@ const getCandidateDashboard =
           candidate:
             candidateId,
         })
-          .populate(
-            "job",
-            "title company location salary jobType category experienceLevel"
-          )
+          .populate({
+            path: "job",
+            select:
+              "title companyId location salary jobType category experienceLevel",
+            populate: jobCompanyPopulate,
+          })
           .sort({
             createdAt:
               -1,
@@ -370,13 +385,16 @@ const getCandidateDashboard =
                 "job",
 
               select:
-                "title company location salary jobType",
+                "title companyId location salary jobType",
+
+              populate: jobCompanyPopulate,
             },
           })
-          .populate(
-            "recruiter",
-            "name email company"
-          )
+          .populate({
+            path: "recruiter",
+            select: "name email companyId",
+            populate: jobCompanyPopulate,
+          })
           .sort({
             date: 1,
           })
@@ -540,8 +558,9 @@ const getRecruiterDashboard =
               -1,
           })
           .select(
-            "_id title company location status jobType category experienceLevel createdAt"
-          );
+            "_id title companyId location status jobType category experienceLevel createdAt"
+          )
+          .populate(jobCompanyPopulate);
 
       const jobIds =
         recruiterJobs.map(
@@ -694,10 +713,11 @@ const getRecruiterDashboard =
             "candidate",
             "name email phone profileImage"
           )
-          .populate(
-            "job",
-            "title company location jobType"
-          )
+          .populate({
+            path: "job",
+            select: "title companyId location jobType",
+            populate: jobCompanyPopulate,
+          })
           .sort({
             createdAt:
               -1,
@@ -727,7 +747,9 @@ const getRecruiterDashboard =
                 "job",
 
               select:
-                "title company location jobType",
+                "title companyId location jobType",
+
+              populate: jobCompanyPopulate,
             },
           })
           .sort({
@@ -1211,8 +1233,9 @@ const getAdminDashboard =
         Job.find()
           .populate(
             "recruiter",
-            "name email company"
+            "name email"
           )
+          .populate(jobCompanyPopulate)
           .sort({
             createdAt:
               -1,
@@ -1228,10 +1251,11 @@ const getAdminDashboard =
             "candidate",
             "name email"
           )
-          .populate(
-            "job",
-            "title company location"
-          )
+          .populate({
+            path: "job",
+            select: "title companyId location",
+            populate: jobCompanyPopulate,
+          })
           .sort({
             createdAt:
               -1,
@@ -1264,12 +1288,14 @@ const getAdminDashboard =
                 "job",
 
               select:
-                "title company location",
+                "title companyId location",
+
+              populate: jobCompanyPopulate,
             },
           })
           .populate(
             "recruiter",
-            "name email company"
+            "name email"
           )
           .sort({
             date: 1,

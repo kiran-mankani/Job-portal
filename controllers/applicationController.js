@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const Application = require("../models/Application");
 const Job = require("../models/Job");
 const User = require("../models/User");
+const Company = require("../models/Company");
 const cloudinary = require("../config/cloudinary");
 
 const { createNotification } = require("./notificationController");
@@ -88,16 +89,25 @@ const buildPagination = (page, limit, total) => {
 const applicationPopulate = [
   {
     path: "job",
-    populate: {
-      path: "recruiter",
-      select:
-        "name email phone profileImage companyId",
-      populate: {
+    populate: [
+      // The job's own company (Job.companyId) — the
+      // authoritative source for the company name.
+      {
         path: "companyId",
         select:
           "name description location website logo",
       },
-    },
+      {
+        path: "recruiter",
+        select:
+          "name email phone profileImage companyId",
+        populate: {
+          path: "companyId",
+          select:
+            "name description location website logo",
+        },
+      },
+    ],
   },
   {
     path: "candidate",
@@ -189,7 +199,10 @@ const applyForJob = async (req, res) => {
     // Check job
     // ------------------------------------------
 
-    const job = await Job.findById(jobId);
+    const job = await Job.findById(jobId).populate(
+      "companyId",
+      "name"
+    );
 
     if (!job) {
       return res.status(404).json({
@@ -278,7 +291,7 @@ const applyForJob = async (req, res) => {
       type: "application",
       title: "Application Submitted",
       message: `Your application for "${job.title}" at ${
-        job.company || "the company"
+        job.companyId?.name || "the company"
       } has been submitted successfully.`,
       relatedId: application._id,
       relatedType: "Application",
@@ -869,12 +882,16 @@ const getRecruiterApplications = async (req, res) => {
 
       const matchingCandidateIds = candidateIds.map((c) => c._id);
 
+      const matchingCompanyIds = (
+        await Company.find({ name: searchRegex }).select("_id")
+      ).map((c) => c._id);
+
       const matchingJobs = await Job.find({
         recruiter: recruiterId,
         $or: [
           { title: searchRegex },
-          { company: searchRegex },
           { location: searchRegex },
+          { companyId: { $in: matchingCompanyIds } },
         ],
       }).select("_id");
 

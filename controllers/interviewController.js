@@ -4,6 +4,7 @@ const Interview = require("../models/Interview");
 const Application = require("../models/Application");
 const Job = require("../models/Job");
 const User = require("../models/User");
+const Company = require("../models/Company");
 
 const {
   createNotification,
@@ -83,11 +84,22 @@ const interviewPopulate = [
     path: "application",
     populate: {
       path: "job",
-      populate: {
-        path: "recruiter",
-        select:
-          "name email phone profileImage company companyLogo companyWebsite",
-      },
+      populate: [
+        // The job's own company (Job.companyId) — the
+        // authoritative source for the company name.
+        {
+          path: "companyId",
+          select: "name description location website logo",
+        },
+        {
+          path: "recruiter",
+          select: "name email phone profileImage companyId",
+          populate: {
+            path: "companyId",
+            select: "name description location website logo",
+          },
+        },
+      ],
     },
   },
   {
@@ -97,8 +109,11 @@ const interviewPopulate = [
   },
   {
     path: "recruiter",
-    select:
-      "name email phone profileImage company companyLogo companyWebsite",
+    select: "name email phone profileImage companyId",
+    populate: {
+      path: "companyId",
+      select: "name description location website logo",
+    },
   },
 ];
 
@@ -744,7 +759,7 @@ const getRecruiterInterviews =
 
         const [
           candidates,
-          jobs,
+          matchingCompanies,
         ] = await Promise.all([
           User.find({
             role:
@@ -762,7 +777,18 @@ const getRecruiterInterviews =
             ],
           }).select("_id"),
 
-          Job.find({
+          Company.find({
+            name: regex,
+          }).select("_id"),
+        ]);
+
+        const matchingCompanyIds =
+          matchingCompanies.map(
+            (company) => company._id
+          );
+
+        const jobs =
+          await Job.find({
             recruiter:
               recruiterId,
             $or: [
@@ -770,11 +796,12 @@ const getRecruiterInterviews =
                 title: regex,
               },
               {
-                company: regex,
+                companyId: {
+                  $in: matchingCompanyIds,
+                },
               },
             ],
-          }).select("_id"),
-        ]);
+          }).select("_id");
 
         const candidateIds =
           candidates.map(
